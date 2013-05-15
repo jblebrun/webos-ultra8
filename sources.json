@@ -1,0 +1,20 @@
+[
+    {"source": "app/models/schip48.js"},
+    {"source": "app/models/canvas_output.js"},
+    {"source": "app/models/htmldiv_output.js"},
+    {"source": "app/models/games.js"},
+    {"source": "app/models/sgames.js"},
+    {"source": "app/assistants/stage-assistant.js"},
+    {
+        "scenes": "run",
+        "source": "app/assistants/run-assistant.js"
+    },
+    {
+        "scenes": "preferences",
+        "source": "app/assistants/preferences-assistant.js"
+    },
+    {
+        "scenes": "Edit",
+        "source": "app/assistants/Edit-assistant.js"
+    }
+]

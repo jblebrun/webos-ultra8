@@ -1,0 +1,40 @@
+8
+
+dir
+1
+file:///var/svn/Ultra8/app/assistants
+file:///var/svn/Ultra8
+
+
+
+2009-09-13T04:41:14.004105Z
+1
+jbl
+
+
+svn:special svn:externals svn:needs-lock
+
+stage-assistant.js
+file
+
+
+
+
+2009-09-13T03:32:59.000000Z
+ddc30254f9e6df24d85ce21e43a6d093
+2009-09-13T04:41:14.004105Z
+1
+jbl
+
+run-assistant.js
+file
+3
+
+
+
+2009-09-13T19:22:00.000000Z
+c5d6ff032fd57b808acce5c3e64550b5
+2009-09-13T19:46:46.291841Z
+3
+jbl
+

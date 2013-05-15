@@ -1,0 +1,343 @@
+function RunAssistant(){
+
+    this.keys = [Mojo.Char.zero, Mojo.Char.w, Mojo.Char.e, Mojo.Char.r, Mojo.Char.s, Mojo.Char.d, Mojo.Char.f, Mojo.Char.z, Mojo.Char.x, Mojo.Char.c, Mojo.Char.shift, Mojo.Char.spaceBar, Mojo.Char.t, Mojo.Char.g, Mojo.Char.v, Mojo.Char.period];
+    this.keysByCode = {};
+    
+    for (var k=0; k< this.keys.length; k++) {
+        this.keysByCode[this.keys[k]] = k;
+        this.keys[k] = false;
+    }
+	
+	this.screenBuffer = [];
+	this.screenMode = 2; /* 2 - loRes, 1 - hiRes */
+    this.xsize = 64;
+	this.ysize = 32;
+	this.canvas_scale = 4;
+	this.o_scale = 1;
+	this.erasing = {};
+    Mojo.Log.info('doing chip48');
+    this.chip48 = new SChip48(this.keys, this);
+    Mojo.Log.info('done chip48');
+	
+}
+
+RunAssistant.prototype.beepOn = function() {
+	this.controller.serviceRequest('palm://com.palm.audio/systemsounds', {
+    method:"playFeedback",   parameters:{ name: 'error_02' }
+ });
+
+}
+RunAssistant.prototype.beepOff = function() {
+	
+}
+RunAssistant.prototype.screenBufferToggle = function(x, y,msg){
+	x %= this.xsize;
+	y %= this.ysize;
+	//var key =x.toString()+y.toString();
+	
+	var position = y*this.xsize + x;
+	
+	var oldBit = this.screenBuffer[position];
+	var bit = oldBit ? 0 : 1;
+	this.screenBuffer[position] = bit;
+	//delete this.erasing[key];
+		
+	if (!bit) {	
+		//this.erasing[key] = 1;
+		//erasetimer = setTimeout((function(){
+			//if (this.erasing[key]) {
+			//	delete this.erasing[x.toString() + y.toString()];
+				this.context.fillStyle = "#FFF";
+				this.context.fillRect(x, y, 1, 1);
+			//}
+
+		//}).bind(this), 30);
+		
+	} else {
+		//Mojo.Log.info('drawing',x,y,new Date().getTime());
+		this.context.fillStyle = "#000";
+		this.context.fillRect(x, y, 1, 1);
+		
+	}
+	return(bit);	
+}
+
+RunAssistant.prototype.screenClear = function(){
+	this.context.fillStyle = "#FFF";
+    this.context.fillRect(0,0,320,480);
+	for(var i = 0; i < 128*64; i++) {
+		this.screenBuffer[i] = 0;
+	}
+	
+	
+}
+
+
+RunAssistant.prototype.putSprite = function(x, y, sprite_bytes, msg){
+
+	   if (msg) {
+        //Mojo.Log.info('start', msg);
+    }
+
+	var unset = 0;
+    var context = this.context;
+    //Mojo.Log.info('scale:',scale);
+    //Mojo.Log.info('drawing sprite at',x,y);
+    for (var row = 0; row < sprite_bytes.length; row++) {
+        var sprite_byte = sprite_bytes[row];
+        //Mojo.Log.info("putting row",x,y+row,sprite_byte);
+        
+        for (var i = 7; i >= 0; i--) {
+			var bit = sprite_byte & 1;
+			sprite_byte >>= 1;
+			
+			if (bit) {
+				var result = this.screenBufferToggle(x + i, y + row, msg);
+				if (result === 0) {
+					unset = 1;
+				}
+			}
+			
+			
+		//Mojo.Log.info('fillRect',x,i,xmod,scale,((x+i)%xmod)*scale,y+row*scale);
+		
+		}
+    }
+    if (msg) {
+        //Mojo.Log.info('DONE:', msg);
+    }
+    
+    return unset;
+}
+
+
+RunAssistant.prototype.drawBuffer = function() {
+	var ctx = this.context;
+    for (var y = 0; y < this.ysize; y++) {
+        for (var x = 0; x < this.xsize; x++) {
+			Mojo.Log.info('redrawing',x,y);
+            //Mojo.Log.info("put",x*8, y, this.screenRows[y][x])
+            var position = y * this.xsize + x;
+            var bit = this.screenBuffer[position];
+            ctx.fillStyle = bit ? "#000" : "#FFF";
+            ctx.fillRect(x * scale, y * scale, scale, scale);
+        }
+    }
+	
+	
+}
+
+RunAssistant.prototype.scrollDown = function(n){
+
+}
+RunAssistant.prototype.scrollLeft = function(n){
+
+}
+RunAssistant.prototype.scrollRight = function(n){
+
+}
+RunAssistant.prototype.loRes = function(n){
+	this.screenMode = 2; /* 2 - loRes, 1 - hiRes */
+    this.xsize = 64;
+	this.ysize = 32;
+	this.canvas_scale = 4;
+	this.context.scale(this.canvas_scale*this.o_scale,this.canvas_scale*this.o_scale);
+	
+}
+
+RunAssistant.prototype.hiRes = function(n){
+	this.screenMode = 1;
+	this.xsize = 128;
+	this.ysize = 64;
+	this.canvas_scale = 2;
+	this.context.scale(this.canvas_scale*this.o_scale,this.canvas_scale*this.o_scale);
+	
+	
+}
+
+RunAssistant.prototype.downHandler = function(event){
+	//Mojo.Log.info('keydown:',event.keyCode);
+    
+	var index = this.keysByCode[event.keyCode];
+	//Mojo.Log.info('index is ',index);
+    if (index !== undefined) {
+        this.keys[index] = true;
+    }
+	this.chip48.check_keys();
+}
+RunAssistant.prototype.upHandler = function(event){
+	//Mojo.Log.info('keyup:',event.keyCode);
+    var index = this.keysByCode[event.keyCode];
+	//Mojo.Log.info('index is ',index);
+    if (index !== undefined) {
+        this.keys[index] = false;
+    }
+}
+
+RunAssistant.prototype.setup = function(){
+
+	if (this.controller.stageController.setWindowOrientation) {
+        this.controller.stageController.setWindowOrientation("free");
+    }
+    Mojo.Log.info('doing setup');
+    /* Font test
+	 * 
+	 * 6100
+	 * 6200
+	 * 6300
+	 * F329
+	 * D125
+	 * 6108
+	 * 6301
+	 * F329
+	 * D125
+	 */
+	GAMES.fonttest = [0x62,0x00,
+	0x61,0x00,0x63,0x01,0xF3,0x29,0xD1,0x25,
+	0x61,0x08,0x63,0x03,0xF3,0x29,0xD1,0x25,
+	0x61,0x10,0x63,0x05,0xF3,0x29,0xD1,0x25,
+	0x61,0x18,0x63,0x07,0xF3,0x29,0xD1,0x25,
+	0x61,0x20,0x63,0x09,0xF3,0x29,0xD1,0x25,
+	0x61,0x28,0x63,0x0B,0xF3,0x29,0xD1,0x25,
+	0x61,0x30,0x63,0x0D,0xF3,0x29,0xD1,0x25,
+	0x61,0x38,0x63,0x0F,0xF3,0x29,0xD1,0x25,
+	0x62,0x10,
+	0x61,0x00,0x63,0x02,0xF3,0x29,0xD1,0x25,
+	0x61,0x08,0x63,0x04,0xF3,0x29,0xD1,0x25,
+	0x61,0x10,0x63,0x06,0xF3,0x29,0xD1,0x25,
+	0x61,0x18,0x63,0x08,0xF3,0x29,0xD1,0x25,
+	0x61,0x20,0x63,0x0A,0xF3,0x29,0xD1,0x25,
+	0x61,0x28,0x63,0x0C,0xF3,0x29,0xD1,0x25,
+	0x61,0x30,0x63,0x0E,0xF3,0x29,0xD1,0x25,
+	
+	0x00,0x00
+	];
+    var canvas = document.getElementById('chip48screen');
+	this.canvas = canvas;
+    this.context = this.canvas.getContext('2d');
+	this.context.save();
+	this.context.scale(4,4);
+	
+	var list_choices = [];
+	for(g in GAMES) {
+		list_choices.push({
+			label: g,
+			value: g
+		});
+	}
+	for(g in SGAMES) {
+		list_choices.push({
+			label: "Super:"+g,
+			value: "@"+g
+		});
+	}
+	var startbutton = document.getElementById('stopStartButton');
+	var resetbutton = document.getElementById('resetButton');
+	var gamesmenu = document.getElementById('gamesChoice');
+	var stepbutton = document.getElementById('stepButton');
+	this.startbutton = startbutton;
+	this.startButtonModel = {label: "Start"};
+	this.controller.setupWidget('stopStartButton', {}, this.startButtonModel);
+	this.controller.setupWidget('resetButton', {label:"Reset"}, {});
+	this.controller.setupWidget('stepButton', {label:"Step"}, {});
+	
+	this.controller.setupWidget('gamesChoice', {label: "Choose Game", choices:list_choices}, {});
+	var chip48 = this.chip48;
+	startbutton.addEventListener(Mojo.Event.tap, this.handleStopStart.bind(this),false);
+    resetbutton.addEventListener(Mojo.Event.tap, this.handleReset.bind(this),false);
+    stepbutton.addEventListener(Mojo.Event.tap, this.handleStep.bind(this),false);
+    Mojo.Log.info('setting up menu');
+	gamesmenu.addEventListener(Mojo.Event.propertyChange, this.handleGameChange.bind(this),false);
+    Mojo.Log.info('set up menu');
+	//this.drawBuffer();
+	
+	
+    document.addEventListener('keydown', this.downHandler.bind(this), false);
+    document.addEventListener('keyup', this.upHandler.bind(this), false);
+    document.addEventListener('orientationchange', this.handleOrientation.bindAsEventListener(this), false);
+    
+}
+
+RunAssistant.prototype.handleOrientation = function(o){
+
+	var els = document.getElementsByClassName('rotatable');
+	if(!els) {
+		return;
+	}
+	$('state').innerHTML= els.length;
+    if (o.position === 4 || o.position === 5) {	
+		
+		this.o_scale = 1.5;
+		for(var i = 0; i<els.length; i++) {
+			els[i].addClassName('horizontal');
+		}       
+    } else if(o.position === 2 || o.position ===3) {   
+	 	this.o_scale=1;
+		for(var i = 0; i<els.length; i++) {
+			els[i].removeClassName('horizontal');
+		}
+    }
+	var scale = this.canvas_scale*this.o_scale
+	$('state').innerHTML = 'scale to'+scale;
+	//this.context.restore();
+	//this.context.scale(scale, scale);
+	//this.screenClear();
+	//this.drawBuffer();
+}
+RunAssistant.prototype.showState = function(state) {
+	$('state').innerHTML = state;
+}
+RunAssistant.prototype.handleStep = function(event) {
+	Mojo.Log.info('stepping');
+	this.chip48.step();
+}
+RunAssistant.prototype.handleReset = function(event) {
+	this.chip48.reset();
+	this.startButtonModel.label = "Start";	
+	this.controller.modelChanged(this.startButtonModel);
+}
+
+RunAssistant.prototype.handleStopStart = function(event) {
+	
+	var running = this.chip48.stopstart();
+	if(!running) {
+		this.startButtonModel.label = "Continue";
+	} else {
+		this.drawBuffer();
+		this.startButtonModel.label = "Pause";
+	}
+	this.controller.modelChanged(this.startButtonModel);
+}
+RunAssistant.prototype.handleGameChange = function(event){
+    this.chip48.reset(true);
+	$('orient').innerHTML = $('chip48screen').className+$('resetButton').className;
+    
+	if (event.value[0] !== "@") {
+        Mojo.Log.info("loading GAMES", event.value);
+        this.chip48.load(GAMES[event.value]);
+        Mojo.Log.info('loaded');
+    } else {
+        Mojo.Log.info("loading SGAMES", event.value.slice(1));
+        this.chip48.load(SGAMES[event.value.slice(1)]);
+        Mojo.Log.info('loaded');
+        
+    }
+    this.startButtonModel.label = "Pause";
+    this.controller.modelChanged(this.startButtonModel);
+    this.chip48.run();
+    
+    
+    
+}
+
+RunAssistant.prototype.activate = function() {
+	this.controller.serviceRequest('palm://com.palm.audio/systemsounds', {
+    method:"playFeedback",   parameters:{ name: 'error_02' }
+ });
+	 this.chip48.load(GAMES.PONG);
+	 this.chip48.run();
+	 //this.screenBufferToggle(10,10);
+	 //this.screenBufferToggle(10,10);
+}
+RunAssistant.prototype.deactivate = function() {
+}

@@ -1,0 +1,31 @@
+canvas {
+	width: 256px;
+	height: 128px;
+}
+
+canvas.horizontal {
+	width: 384px;
+	height: 192px;
+}
+
+div.pixel0 {
+	background-color: white;
+	width: 2px;
+	height: 2px;
+	float: left;
+	margin: 0;
+}
+div.pixel1 {
+	background-color: black;
+	width: 2px;
+	height: 2px;
+	float: left;
+	margin: 0;
+}
+
+#chip48divscreen {
+	width: 256px;
+	height: 128px;
+}
+
+

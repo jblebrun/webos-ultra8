@@ -1,0 +1,22 @@
+
+
+#chip48screen {
+	width: 256px;
+	height: 128px;
+	border: 1px solid black;
+	margin: 10px;
+}
+#chip48screen.horizontal {
+	width: 384px;
+	height: 192px;
+	
+	
+}
+
+#state {
+	font-size: 10px;
+}
+
+.button.horizontal {
+	float: left;
+}

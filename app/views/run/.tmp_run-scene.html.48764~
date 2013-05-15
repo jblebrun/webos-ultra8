@@ -1,0 +1,13 @@
+&nbsp;
+<br/>
+&nbsp;
+<br/>
+<canvas id="chip48screen" class='rotatable'></canvas>
+
+<div class="button rotatable" id="stopStartButton" x-mojo-element="Button"></div>
+<div class="button rotatable" id="resetButton" x-mojo-element="Button"></div>
+<div class="button rotatable" id="stepButton" x-mojo-element="Button"></div>
+
+<div id="gamesChoice" x-mojo-element="ListSelector"></div>
+<div id="state" class="foo"></div>
+<div id="orient"></div>

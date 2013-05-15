@@ -1,0 +1,13 @@
+function StageAssistant() {
+	
+}
+
+StageAssistant.prototype.setup = function() {
+	if (this.controller.setWindowOrientation) {
+        this.controller.setWindowOrientation("free");
+    }
+	this.controller.pushScene({
+		name: "run",
+		disableSceneScroller: true
+	});
+}

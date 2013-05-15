@@ -1,0 +1,487 @@
+function SChip48(input, output) {
+	
+	/* Input is an array of 16 values representing key states
+	 * Output interface:
+	 * togglePixels(byte_array); (returns VF state);
+	 * scrollLeft(n);
+	 * scrollRight(n);
+	 * scrollDown(n)
+	 * loRes();
+	 * hiRes();
+	 * clear();
+	 */
+	
+	
+	/*Memory, byte addressed*/
+	var mem = [];
+	
+	 hp48 = [0,0,0,0,0,0,0,0];
+	/*Call stack*/
+	var stack = [];
+	var font_start = 0x100;
+	/*Registers*/
+	var V= [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+	var I = 0;
+	var PC = 0x200;
+	
+	var breakpoints = [];
+	var delay_timer = 0;
+	var beep_timer = 0;
+	var blocking = false;
+	var running = false;
+	var reset = true;
+	var screenBuffer = [];
+	var CYCLES_PER_INTERVAL = 10;
+	/* Build fonts */
+	var font =  [
+	0xF0, 0x90, 0x90, 0x90, 0xF0, 
+	0x20, 0x60, 0x20, 0x20, 0x70,
+	0xF0, 0x10, 0xF0, 0x80, 0xF0,
+	0xF0, 0x10, 0x70, 0x10, 0xF0,
+	0xA0, 0xA0, 0xF0, 0x20, 0x20,
+	0xF0, 0x80, 0xF0, 0x10, 0xF0,
+	0xF0, 0x80, 0xF0, 0x90, 0xF0,
+	0xF0, 0x10, 0x10, 0x10, 0x10,
+	0x60, 0x90, 0x60, 0x90, 0x60,
+	0xF0, 0x90, 0xF0, 0x10, 0x10,
+	0x60, 0x90, 0xF0, 0x90, 0x90,
+	0xE0, 0x90, 0xE0, 0x90, 0xE0,
+	0xF0, 0x80, 0x80, 0x80, 0xF0,
+	0xE0, 0x90, 0x90, 0x90, 0xE0,
+	0xF0, 0x80, 0xF0, 0x80, 0xF0,
+	0xF0, 0x80, 0xE0, 0x80, 0x80
+	];
+	for(var i = 0; i < 80; i++) {
+		mem[font_start + i] = font[i];
+	}
+	
+	
+	/* Initialize screen */
+	for(var y = 0; y < 64; y++) {
+		screenBuffer[y] = [];
+		for(var x= 0; x< 16; x++) {
+			screenBuffer[y][x] = 0;
+		}
+	}
+	
+	
+	
+	
+	var dumpstate = function() {
+		output.showState("Registers:"+V+"<br/>"+"I:"+I.toString(16)+" PC:"+PC.toString(16)+"ST:"+beep_timer+"DT:"+delay_timer);
+	}
+	var operations = function(low, high) {
+		//Mojo.Log.info('Executing',PC-2,":",n3,n2,n1,n0);
+		
+		
+		/* Native routines*/
+		
+		if(n3===0) {
+			if(n2 !== 0) {
+				return;
+			} 
+			if(n1 === 0x0C) {
+				output.scrollDown(n0);
+			}
+			if(n1 === 0x0F) {
+				if(n0 === 0x0B) {
+					output.scrollRight(4);
+				}
+				if(n0 === 0x0C) {
+					output.scrollLeft(4);
+				}
+				if(n0 === 0x0D) {
+					Mojo.Log.info('halting');
+					running = false;
+				}
+				if(n0 === 0x0E) {
+					output.loRes();
+				}
+				if(n0 === 0x0F) {
+					output.hiRes();
+				}
+			}
+			if(n1 === 0x0E) {
+				if(n0 === 0x00) {
+					output.screenClear();
+				}
+				if(n0 === 0x0E) {
+					PC = stack.pop();
+				}
+			}
+		}
+		
+		/*Jump*/
+		if(n3===1) {
+			var oldPC = PC-2;
+			PC = n0 + (n1 << 4) + (n2 << 8);
+			
+			if (PC === oldPC) {
+				Mojo.Log.info("infinite loop, don't waste energy running it");
+				running = false;
+			}
+		}
+		
+		/*Call*/
+		if(n3===2){
+			//Mojo.Log.info('pushing PC');
+			stack.push(PC);
+			PC = n0 + (n1 << 4) + (n2 << 8);
+			//Mojo.Log.info("set PC to ",PC);
+		}
+		
+		/*Test Skip if vx==const*/
+		if(n3===3) {
+			if(V[n2] === (n0 + (n1 << 4))) {
+				PC+=2;
+			}
+		}
+		/*Test and Skip vx!= const*/
+		if(n3===4) {
+			if(V[n2] !== (n0 + (n1 << 4))) {
+				PC+=2;
+			}
+		}
+		/*Test and Skip vx==vy */
+		if(n3===5){
+			if(V[n2] === V[n1]) {
+				PC+=2;
+			}
+		}
+		/*Assign const vx=kk*/
+		if(n3===6){
+			//Mojo.Log.info("v",n2,"=",n1,n0);
+			V[n2] = n0 + (n1 << 4);
+		}
+		/*Add const vx+=kk*/
+		if(n3===7){
+			V[n2] += n0 + (n1 << 4);
+			if (V[n2] > 255) {
+					
+					V[15] = 1;
+					V[n2] &= 0xFF;
+				} else {
+					
+					V[15] = 0;
+				}		
+		}
+		/*Math ops vx = vx op vy*/
+		if(n3===8){
+			var x= n2, y=n1;
+			if(n0===0) {
+				V[x] = V[y];
+			}
+			if(n0===1) {	
+				V[x] |= V[y];		
+			}
+			if(n0===2) {
+				V[x] &= V[y];
+			}
+			if(n0===3) {
+				V[x] ^= V[y];
+			}
+			if(n0===4) {
+				
+				V[x] += V[y];
+				if (V[x] > 255) {
+					
+					V[15] = 1;
+					V[x] &= 0xFF;
+				} else {
+					
+					V[15] = 0;
+				}		
+			}
+			
+			if(n0===5) {
+				if(V[x] >= V[y]) {
+					V[x] -= V[y];
+					V[15] = 1;
+					
+				} else {
+					V[x] += 255-V[y];
+					V[15] = 0;
+				}
+			}
+			
+			if(n0===6) {
+				V[f] = V[x] & 0x01;
+				V[x] >>= 1;
+			}
+			
+			if(n0===7) {
+				if(V[y] >= V[x]) {
+					V[x] = V[y] - V[x];
+					V[15] = 1;
+					
+				} else {
+					V[x] = 255+V[y]-V[x];
+					V[15] = 0;
+				}
+			}
+			
+			
+			if(n0===0x0E) {
+				V[15] = V[x] & 0x80;
+				V[x] <<= 1;
+			}
+			
+		
+		}
+		
+		/*Skip vx != vy*/
+		if(n3===9){
+			
+			if(V[n2] !== V[n1]) {
+				PC+=2;
+			}
+		}
+		
+
+		/* I = NNN */
+		if(n3===0x0A) {
+			
+			//Mojo.Log.info(n0,n1<<4,n2<<8);
+			I = n0 + (n1 << 4) + (n2 << 8);
+		}
+		
+		if(n3===0x0B){
+			PC = n0 + (n1 << 4) + (n2 << 8) + V[0];
+		}
+		if(n3===0x0C){
+			var r = Math.floor(Math.random()*255);
+			//Mojo.Log.info('random',r,n0+(n1<<4));
+			V[n2] = r & (n0 + (n1 <<4));
+		
+		}
+		if(n3===0x0D){
+			var rows = [];
+			var msg = null;
+			var x = V[n2], y = V[n1], yt = V[n1];
+			//Mojo.Log.info('putting',n0,"rows")
+			
+			for(var index = 0; index < n0; index++) {		
+				rows.push(mem[I+index]);			
+				//Mojo.Log.info('putting sprite row',x,yt,I,mem[I+index]);						
+			}
+			
+			V[15] = output.putSprite(x,y,rows);
+			
+		}
+		if(n3===0x0E){
+			if(n0 === 0x0E && n1 === 0x09) {
+				if(!!input[V[n2]]) {
+					//Mojo.Log.info('key was down',V[n2]);
+					PC+=2;
+				}
+			}
+			if(n0 === 0x01 && n1 === 0x0A) {
+				if(!input[V[n2]]) {
+					//Mojo.Log.info('key was up',V[n2]);
+					PC+=2;
+				}
+			}
+		}
+		
+		if(n3===0x0F){
+			if(n0 === 0x07 && n1 === 0x00) {
+				V[n2] = delay_timer;
+			}
+			if(n0 === 0x0A && n1 === 0x00) {
+				for(var i = 0; i < 16; i++) {
+					if(!!input[i]) {
+						V[n2] = i;
+						return;
+					}
+				} 
+				Mojo.Log.info('waiting on keys')
+			
+				PC -= 2;
+				blocking = true;
+				
+			}
+			if(n0 === 0x05 && n1 === 0x01) {
+				delay_timer = V[n2];
+				
+			}
+			if(n0 === 0x08 && n1 === 0x01) {
+				output.beepOn();
+				beep_timer = V[n2];
+				
+			}
+			if(n0 === 0x0E && n1 === 0x01) {
+				I += V[n2];
+			}
+			if(n0 === 0x09 && n1 === 0x02) {
+				
+				I = font_start + V[n2] * 5;
+			
+			}
+			if(n0 === 0x03 && n1 === 0x03) {
+				var n = V[n2];			
+				mem[I] = Math.floor(n/100);
+				mem[I+1] = Math.floor(n%100/10);
+				mem[I+2] = Math.floor(n%10);
+			}
+			if(n0 === 0x05 && n1 === 0x05) {
+				for(var i = 0; i <= n2; i++) {
+					mem[I+i] = V[i];
+				}
+			}
+			if(n0 === 0x05 && n1 === 0x06) {
+				for(var i = 0; i <= n2; i++) {
+					V[i] = mem[I+i];
+				}
+			}
+			if(n0 === 0x05 && n1 === 0x07) {
+				for(var i = 0; i <= n2; i++) {
+					hp48[i] = V[i];
+				}
+			}
+			if(n0 === 0x05 && n1 === 0x08) {
+				for(var i = 0; i <= n2; i++) {
+					V[i] = hp48[i];
+				}
+			}
+			
+			
+		}
+	//Mojo.Log.info('showing registers next');
+	//Mojo.Log.info("registers:",PC,V,I);
+	};
+	
+	this.load = function(program_array, start_address) {
+		if(running) {
+			return;
+		}
+		if(start_address === undefined) {
+			PC = 0x200;
+		} else {
+			PC = start_address;
+		}
+		for(var i = 0; i < program_array.length; i++) {
+			mem[PC+i] = program_array[i];
+		}
+		Mojo.Log.info("mem after load:",mem);
+	};
+	
+	this.reset = function(clear_mem) {
+		if(clear_mem) {
+			mem = [];
+			for(var i = 0; i < 80; i++) {
+				mem[font_start + i] = font[i];
+			}
+		}
+		output.screenClear();
+		stack = [];
+		PC = 0x200;
+		V = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+		I = 0;
+		delay_timer = 0;
+		beep_timer = 0;		
+		running = false;
+		halted = false;
+		reset= true;
+	};
+	
+    function fetch_and_execute(showstate){
+		for(var i = 0; i<breakpoints.length; i++) {
+			if(PC === breakpoints[i]) {
+				running = false;
+				dumpstate();
+			}
+		}
+		if(showstate) {
+			dumpstate();
+		}
+		
+ 		var high = mem[PC++];
+        var low = mem[PC++];
+		
+        if(high === undefined || low === undefined) {
+			Mojo.Log.info('something is undefined',high,low);
+			running = false;
+		}
+        	
+		//if(n3 == 1, n2 == 2, n1 == 1 , n0 == 12) {
+			//stop_timers();
+		//	running = false;
+		//}
+		//Mojo.Log.info(PC.toString(16));
+        operations(low, high);
+		
+    };
+	
+	
+	this.step = function() {
+		if(!running) {
+			fetch_and_execute(true);
+		}
+		
+	}
+	var do_run = function() {
+		
+		if(delay_timer > 0) {			
+			delay_timer--;
+		}
+		if(beep_timer > 0) {
+			beep_timer--;
+			if(beep_timer === 0) {
+				output.beepOff();
+			}
+		}
+	
+		//var start = new Date().getTime();
+		for(var i = 0; i < CYCLES_PER_INTERVAL; i++) {
+			if (!blocking) {
+				fetch_and_execute();
+			}
+			if(!running) {
+				break;
+			}
+		}
+		//var end = new Date().getTime();
+		//Mojo.Log.info('ran',CYCLES_PER_INTERVAL,"instructions in",end-start,'ms');
+		if (running) {
+			setTimeout(do_run, 16);
+		}
+	}
+	
+	
+	this.stopstart = function() {
+		running = !running;
+		if(running) {
+			if (reset) {
+				this.run();
+			} else {
+				setTimeout(do_run, 1);
+			}
+		}
+		return running;
+	}
+	this.run = function() {
+		PC = 0x200;
+		running = true;
+		reset = false;
+		output.screenClear();
+		setTimeout(do_run, 1);
+	};
+	
+	/* If the block-in-keys opcode is called,
+	 * the input object needs to call this
+	 * to continue running
+	 */
+	this.check_keys = function() {
+		if(blocking) {
+			blocking = false;
+		}
+	};
+
+	this.set_breakpoint = function(address) {
+		this.breakpoints.push(address)
+	}
+	this.is_running = function() {
+		return this.running;
+	}
+	
+}

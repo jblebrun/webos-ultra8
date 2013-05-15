@@ -1,0 +1,13 @@
+&nbsp;
+<br/>
+&nbsp;
+<br/>
+<div id="output_spot">
+</div>
+<canvas id="canvas_output"></canvas>
+<div class="button rotatable debug" id="stopStartButton" x-mojo-element="Button"></div>
+<div class="button rotatable" id="resetButton" x-mojo-element="Button"></div>
+<div class="button rotatable debug" id="stepButton" x-mojo-element="Button"></div>
+
+<div id="gamesChoice" x-mojo-element="ListSelector"></div>
+<div class="debug" id="state"></div>

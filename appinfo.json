@@ -1,0 +1,9 @@
+{
+	"id": "info.opensourcejason.ultra8",
+	"version": "0.9.4",
+	"vendor": "opensourcejason",
+	"type": "web",
+	"main": "index.html",
+	"title": "Ultra8",
+	"icon": "ultra8_icon.png"
+}

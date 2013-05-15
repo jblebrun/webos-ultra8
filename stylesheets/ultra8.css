@@ -1,0 +1,32 @@
+
+#state {
+	font-size: 10px;
+}
+
+.button.horizontal {
+	float: left;
+}
+
+#output_spot div {
+	float: left;
+	width: 4px;
+	height: 4px;
+	
+}
+
+#output_spot.hiRes div {
+	width: 2px;
+	height: 2px;
+}
+
+#output_spot div.true {
+	-webkit-transition: background-color 0.001s ease-in;
+	background-color: black;
+    /*opacity: 1*/;
+}
+
+#output_spot div.false {
+	-webkit-transition: background-color 0.1s ease-out;
+	background-color: white;
+	/*opacity: 0*/;
+}
